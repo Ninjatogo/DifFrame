@@ -2,86 +2,90 @@ import cv2
 import numpy as np
 import DataTemplates as datTemp
 
+
 class FrameCollector:
     def __init__(self):
-        self.diffBlocksTempDict = {}
-        self.diffBlocksTempDict['count'] = 0
-        self.diffBlocksStorageDict = {}
-        self.diffBlocksStorageDict['OutputFrame'] = 0
+        self.diffBlocksTempDict = {'count': 0}
+        self.diffBlocksStorageDict = {'OutputFrame': 0}
 
     def dictAppend(self, inFrameData, inFrameNumber, inFrameX, inFrameY):
-        if(self.diffBlocksTempDict.get(inFrameNumber) is None):
+        if self.diffBlocksTempDict.get(inFrameNumber) is None:
             self.diffBlocksTempDict[inFrameNumber] = []
-        self.diffBlocksTempDict[inFrameNumber].append(datTemp.diffBlckMin(FrameData=inFrameData, FrameX=inFrameX, FrameY=inFrameY))
+        self.diffBlocksTempDict[inFrameNumber].append(
+            datTemp.diffBlckMin(FrameData=inFrameData, FrameX=inFrameX, FrameY=inFrameY))
         self.diffBlocksTempDict['count'] += 1
 
     def isWorkingSetReady2(self, inWorkingSetSize):
-        return (self.diffBlocksTempDict['count'] >= inWorkingSetSize)
+        return self.diffBlocksTempDict['count'] >= inWorkingSetSize
 
     def getWorkingSetCollection2(self, inWorkingSetSize):
-        workingSet = {}
-        if(self.diffBlocksTempDict['count'] >= inWorkingSetSize):
-            itemsAdded = 0
+        working_set = {}
+        if self.diffBlocksTempDict['count'] >= inWorkingSetSize:
+            items_added: int = 0
             keys = list(self.diffBlocksTempDict.keys())
 
             for key in [key for key in keys if key != 'count']:
-                if(len(self.diffBlocksTempDict.get(key)) > 0):
+                if len(self.diffBlocksTempDict.get(key)) > 0:
                     while self.diffBlocksTempDict.get(key):
-                        if(itemsAdded < inWorkingSetSize):
-                            if(workingSet.get(key) is None):
-                                workingSet[key] = []
-                            workingSet[key].append(self.diffBlocksTempDict.get(key).pop())
+                        if items_added < inWorkingSetSize:
+                            if working_set.get(key) is None:
+                                working_set[key] = []
+                            working_set[key].append(self.diffBlocksTempDict.get(key).pop())
                             self.diffBlocksTempDict['count'] -= 1
-                            itemsAdded += 1
+                            items_added += 1
                         else:
                             break
-                if(itemsAdded >= inWorkingSetSize):
+                if items_added >= inWorkingSetSize:
                     break
-        return workingSet
+        return working_set
 
     def generateOutputFrames2(self, inCROP_W_SIZE, inCROP_H_SIZE):
-        workingSetDict = self.getWorkingSetCollection2(inCROP_W_SIZE * inCROP_H_SIZE)
-        workingSetTupleList = []
-        imageBuffer = []
-        fileName = self.diffBlocksStorageDict['OutputFrame']
+        working_set_dict = self.getWorkingSetCollection2(inCROP_W_SIZE * inCROP_H_SIZE)
+        working_set_tuple_list = []
+        image_buffer = []
+        file_name = self.diffBlocksStorageDict['OutputFrame']
 
-        keys = list(workingSetDict.keys())
+        keys = list(working_set_dict.keys())
         for frameNumber in keys:
-            frameBlockList = workingSetDict.get(frameNumber)
-            for frameBlock in frameBlockList:
-                workingSetTupleList.append((frameNumber, frameBlock))
+            frame_block_list = working_set_dict.get(frameNumber)
+            for frameBlock in frame_block_list:
+                working_set_tuple_list.append((frameNumber, frameBlock))
 
         for y in range(inCROP_H_SIZE):
             # Start off image array with one frame block to give loop something to append to
-            imageStrip = workingSetTupleList[y * inCROP_W_SIZE][1].FrameData
+            image_strip = working_set_tuple_list[y * inCROP_W_SIZE][1].FrameData
 
-            if(self.diffBlocksStorageDict.get(workingSetTupleList[y * inCROP_W_SIZE][0]) is None):
-                self.diffBlocksStorageDict[workingSetTupleList[y * inCROP_W_SIZE][0]] = []
+            if self.diffBlocksStorageDict.get(working_set_tuple_list[y * inCROP_W_SIZE][0]) is None:
+                self.diffBlocksStorageDict[working_set_tuple_list[y * inCROP_W_SIZE][0]] = []
 
-            _frameX = workingSetTupleList[y * inCROP_W_SIZE][1].FrameX
-            _frameY = workingSetTupleList[y * inCROP_W_SIZE][1].FrameY
-            frameDiffBlockComplete = datTemp.diffBlckComplete(FrameX=_frameX, FrameY=_frameY, Filename=fileName, FileX=0, FileY=y)
-            self.diffBlocksStorageDict[workingSetTupleList[y * inCROP_W_SIZE][0]].append(frameDiffBlockComplete)
+            _frameX = working_set_tuple_list[y * inCROP_W_SIZE][1].FrameX
+            _frameY = working_set_tuple_list[y * inCROP_W_SIZE][1].FrameY
+            frame_diff_block_complete = datTemp.diffBlckComplete(FrameX=_frameX, FrameY=_frameY, Filename=file_name,
+                                                                 FileX=0, FileY=y)
+            self.diffBlocksStorageDict[working_set_tuple_list[y * inCROP_W_SIZE][0]].append(frame_diff_block_complete)
 
             for x in range(inCROP_W_SIZE - 1):
-                imageStrip = np.concatenate([imageStrip, workingSetTupleList[(x + 1) + (y * inCROP_W_SIZE)][1].FrameData], axis=1)
-                if(self.diffBlocksStorageDict.get(workingSetTupleList[(x + 1) + (y * inCROP_W_SIZE)][0]) is None):
-                    self.diffBlocksStorageDict[workingSetTupleList[(x + 1) + (y * inCROP_W_SIZE)][0]] = []
+                image_strip = np.concatenate(
+                    [image_strip, working_set_tuple_list[(x + 1) + (y * inCROP_W_SIZE)][1].FrameData], axis=1)
+                if self.diffBlocksStorageDict.get(working_set_tuple_list[(x + 1) + (y * inCROP_W_SIZE)][0]) is None:
+                    self.diffBlocksStorageDict[working_set_tuple_list[(x + 1) + (y * inCROP_W_SIZE)][0]] = []
 
-                _frameX = workingSetTupleList[(x + 1) + (y * inCROP_W_SIZE)][1].FrameX
-                _frameY = workingSetTupleList[(x + 1) + (y * inCROP_W_SIZE)][1].FrameY
-                frameDiffBlockComplete = datTemp.diffBlckComplete(FrameX=_frameX, FrameY=_frameY, Filename=fileName, FileX=x + 1, FileY=y)
-                self.diffBlocksStorageDict[workingSetTupleList[(x + 1) + (y * inCROP_W_SIZE)][0]].append(frameDiffBlockComplete)
+                _frameX = working_set_tuple_list[(x + 1) + (y * inCROP_W_SIZE)][1].FrameX
+                _frameY = working_set_tuple_list[(x + 1) + (y * inCROP_W_SIZE)][1].FrameY
+                frame_diff_block_complete = datTemp.diffBlckComplete(FrameX=_frameX, FrameY=_frameY, Filename=file_name,
+                                                                     FileX=x + 1, FileY=y)
+                self.diffBlocksStorageDict[working_set_tuple_list[(x + 1) + (y * inCROP_W_SIZE)][0]].append(
+                    frame_diff_block_complete)
 
-            imageBuffer.append(imageStrip)
+            image_buffer.append(image_strip)
 
-        imageBuffer2 = imageBuffer[0]
-        for i in range(len(imageBuffer)):
-            if ((i + 1) < len(imageBuffer)):
-                imageBuffer2 = np.concatenate([imageBuffer2, imageBuffer[i + 1]], axis=0)
-        return imageBuffer2
+        image_buffer2 = image_buffer[0]
+        for i in range(len(image_buffer)):
+            if (i + 1) < len(image_buffer):
+                image_buffer2 = np.concatenate([image_buffer2, image_buffer[i + 1]], axis=0)
+        return image_buffer2
 
     def saveToDisk2(self, inCROP_W_SIZE, inCROP_H_SIZE):
-        imageBuffer2 = self.generateOutputFrames2(inCROP_W_SIZE, inCROP_H_SIZE)
-        cv2.imwrite(f"OutputFrames\\pic{self.diffBlocksStorageDict['OutputFrame']}.jpg", imageBuffer2)
+        image_buffer2 = self.generateOutputFrames2(inCROP_W_SIZE, inCROP_H_SIZE)
+        cv2.imwrite(f"OutputFrames\\pic{self.diffBlocksStorageDict['OutputFrame']}.jpg", image_buffer2)
         self.diffBlocksStorageDict['OutputFrame'] += 1
