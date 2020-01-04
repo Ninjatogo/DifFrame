@@ -12,6 +12,7 @@ import numpy as np
 from skimage.metrics import structural_similarity
 
 from FrameCollector import FrameCollector
+import DataTemplates
 
 
 class FrameProcessor:
@@ -31,27 +32,36 @@ class FrameProcessor:
         while self.frameCollector.isWorkingSetReady2(self.frameDivisionDimensionX * self.frameDivisionDimensionY):
             self.frameCollector.saveToDisk2(self.frameDivisionDimensionX, self.frameDivisionDimensionY)
 
-    def extractDifferences(self, inFileIndex):
-        if inFileIndex + 1 < len(self.framePaths):
-            frameA = cv2.imread(self.framePaths[inFileIndex])
-            frameB = cv2.imread(self.framePaths[inFileIndex + 1])
-            grayFrameA = cv2.cvtColor(frameA, cv2.COLOR_BGR2GRAY)
-            grayFrameB = cv2.cvtColor(frameB, cv2.COLOR_BGR2GRAY)
-            for ih in range(self.frameDivisionDimensionY):
-                for iw in range(self.frameDivisionDimensionX):
-                    x = self.frameWidth / self.frameDivisionDimensionX * iw
-                    y = self.frameHeight / self.frameDivisionDimensionY * ih
-                    h = self.frameHeight / self.frameDivisionDimensionY
-                    w = self.frameWidth / self.frameDivisionDimensionX
-                    grayFrameBlockA = grayFrameA[int(y):int(y + h), int(x):int(x + w)]
-                    grayFrameBlockB = grayFrameB[int(y):int(y + h), int(x):int(x + w)]
+    def extractDifferences(self, inFileIndices, inReturnToQueue):
+        difference_list = []
+        for inFileIndex in inFileIndices:
+            if inFileIndex + 1 < len(self.framePaths):
+                frame_a = cv2.imread(self.framePaths[inFileIndex])
+                frame_b = cv2.imread(self.framePaths[inFileIndex + 1])
+                gray_frame_a = cv2.cvtColor(frame_a, cv2.COLOR_BGR2GRAY)
+                gray_frame_b = cv2.cvtColor(frame_b, cv2.COLOR_BGR2GRAY)
+                for ih in range(self.frameDivisionDimensionY):
+                    for iw in range(self.frameDivisionDimensionX):
+                        x = self.frameWidth / self.frameDivisionDimensionX * iw
+                        y = self.frameHeight / self.frameDivisionDimensionY * ih
+                        h = self.frameHeight / self.frameDivisionDimensionY
+                        w = self.frameWidth / self.frameDivisionDimensionX
+                        gray_frame_block_a = gray_frame_a[int(y):int(y + h), int(x):int(x + w)]
+                        gray_frame_block_b = gray_frame_b[int(y):int(y + h), int(x):int(x + w)]
 
-                    similarityScore = structural_similarity(grayFrameBlockA, grayFrameBlockB, full=True)[0]
+                        similarity_score = structural_similarity(gray_frame_block_a, gray_frame_block_b, full=True)[0]
 
-                    if similarityScore <= self.similarityThreshold:
-                        colorFrameBlockB = frameB[int(y):int(y + h), int(x):int(x + w)]
-                        colorFrameBlockB = np.pad(colorFrameBlockB, pad_width=((2, 2), (2, 2), (0, 0)), mode='edge')
-                        self.frameCollector.dictAppend(colorFrameBlockB, inFileIndex, iw, ih)
+                        if similarity_score <= self.similarityThreshold:
+                            color_frame_block_b = frame_b[int(y):int(y + h), int(x):int(x + w)]
+                            color_frame_block_b = np.pad(color_frame_block_b, pad_width=((2, 2), (2, 2), (0, 0)),
+                                                         mode='edge')
+                            if inReturnToQueue:
+                                difference_list.append(
+                                    DataTemplates.diffBlckTransfer(FrameData=color_frame_block_b, FrameIndex=inFileIndex,
+                                                                   FrameX=iw, FrameY=ih))
+                            else:
+                                self.frameCollector.dictAppend(color_frame_block_b, inFileIndex, iw, ih)
+        return difference_list
 
     def setDivisionDimensions(self, inDimensionX, inDimensionY):
         if len(self.framePaths) > 0:

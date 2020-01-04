@@ -1,6 +1,8 @@
+import itertools
 import time
+from multiprocessing import Pool, cpu_count
 
-from joblib import Parallel, cpu_count, delayed
+import numpy as np
 
 from FrameProcessor import FrameProcessor
 
@@ -9,10 +11,14 @@ def main():
     print('DifFrame Main')
     qaz = FrameProcessor('SampleFrames-Mob_Psycho_100', 0.92)
     frame_range_raw = [y for y in range(17)]
+    frame_range_chunked = np.array_split(frame_range_raw, cpu_count())
     qaz.setDivisionDimensions(16, 9)
 
-    with Parallel(n_jobs=cpu_count(), require='sharedmem') as parallel:
-        parallel(delayed(qaz.extractDifferences)(i) for i in frame_range_raw)
+    with Pool() as pool:
+        pool_output = pool.starmap(qaz.extractDifferences, [(x, True) for x in frame_range_chunked])
+
+    for item in list(itertools.chain(*pool_output)):
+        qaz.frameCollector.dictAppend(item.FrameData, item.FrameIndex, item.FrameX, item.FrameY)
 
     qaz.generateBatchFrames()
 
