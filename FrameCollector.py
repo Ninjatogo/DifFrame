@@ -8,17 +8,17 @@ class FrameCollector:
         self.diffBlocksTempDict = {'count': 0}
         self.diffBlocksStorageDict = {'OutputFrame': 0}
 
-    def dictAppend(self, inFrameData, inFrameNumber, inFrameX, inFrameY):
+    def dictionary_append(self, inFrameData, inFrameNumber, inFrameX, inFrameY):
         if self.diffBlocksTempDict.get(inFrameNumber) is None:
             self.diffBlocksTempDict[inFrameNumber] = []
         self.diffBlocksTempDict[inFrameNumber].append(
             datTemp.diffBlckMin(FrameData=inFrameData, FrameX=inFrameX, FrameY=inFrameY))
         self.diffBlocksTempDict['count'] += 1
 
-    def isWorkingSetReady2(self, inWorkingSetSize):
+    def is_working_set_ready(self, inWorkingSetSize):
         return self.diffBlocksTempDict['count'] >= inWorkingSetSize
 
-    def getWorkingSetCollection2(self, inWorkingSetSize):
+    def get_working_set_collection(self, inWorkingSetSize):
         working_set = {}
         if self.diffBlocksTempDict['count'] >= inWorkingSetSize:
             items_added: int = 0
@@ -39,8 +39,8 @@ class FrameCollector:
                     break
         return working_set
 
-    def generateOutputFrames2(self, inCROP_W_SIZE, inCROP_H_SIZE):
-        working_set_dict = self.getWorkingSetCollection2(inCROP_W_SIZE * inCROP_H_SIZE)
+    def generate_output_frames(self, inCROP_W_SIZE, inCROP_H_SIZE):
+        working_set_dict = self.get_working_set_collection(inCROP_W_SIZE * inCROP_H_SIZE)
         working_set_tuple_list = []
         image_buffer = []
         file_name = self.diffBlocksStorageDict['OutputFrame']
@@ -85,7 +85,7 @@ class FrameCollector:
                 image_buffer2 = np.concatenate([image_buffer2, image_buffer[i + 1]], axis=0)
         return image_buffer2
 
-    def saveToDisk2(self, inCROP_W_SIZE, inCROP_H_SIZE):
-        image_buffer2 = self.generateOutputFrames2(inCROP_W_SIZE, inCROP_H_SIZE)
+    def save_to_disk(self, inCROP_W_SIZE, inCROP_H_SIZE):
+        image_buffer2 = self.generate_output_frames(inCROP_W_SIZE, inCROP_H_SIZE)
         cv2.imwrite(f"OutputFrames\\pic{self.diffBlocksStorageDict['OutputFrame']}.jpg", image_buffer2)
         self.diffBlocksStorageDict['OutputFrame'] += 1

@@ -4,3 +4,4 @@ venv/pyvenv.cfg
 *.pyc
 .idea/misc.xml
 .idea/DifFrame.iml
+OutputFrames/

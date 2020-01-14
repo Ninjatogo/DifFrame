@@ -33,8 +33,8 @@ class FrameProcessor:
         self.set_dicing_rate(1)
 
     def generate_batch_frames(self):
-        while self.frameCollector.isWorkingSetReady2(self.frameDivisionDimensionX * self.frameDivisionDimensionY):
-            self.frameCollector.saveToDisk2(self.frameDivisionDimensionX, self.frameDivisionDimensionY)
+        while self.frameCollector.is_working_set_ready(self.frameDivisionDimensionX * self.frameDivisionDimensionY):
+            self.frameCollector.save_to_disk(self.frameDivisionDimensionX, self.frameDivisionDimensionY)
 
     def extract_differences(self, in_file_indices, in_return_to_queue):
         difference_list = []
@@ -65,7 +65,7 @@ class FrameProcessor:
                                                                    FrameIndex=inFileIndex,
                                                                    FrameX=iw, FrameY=ih))
                             else:
-                                self.frameCollector.dictAppend(color_frame_block_b, inFileIndex, iw, ih)
+                                self.frameCollector.dictionary_append(color_frame_block_b, inFileIndex, iw, ih)
         return difference_list
 
     def set_dicing_rate(self, in_rate=1):
