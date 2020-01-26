@@ -1,5 +1,6 @@
 import itertools
 import time
+from tinydb import TinyDB, Query
 from multiprocessing import Pool, cpu_count
 
 import numpy as np
