@@ -1,6 +1,5 @@
 import itertools
 import time
-from tinydb import TinyDB, Query
 from multiprocessing import Pool, cpu_count
 
 import numpy as np
@@ -16,10 +15,10 @@ def main():
     qaz.set_dicing_rate(2)
 
     with Pool() as pool:
-        pool_output = pool.starmap(qaz.extract_differences, [(x, True) for x in frame_range_chunked])
+        pool_output = pool.starmap(qaz.identify_differences, [(x, True) for x in frame_range_chunked])
 
     for item in list(itertools.chain(*pool_output)):
-        qaz.frameCollector.dictionary_append(item.FrameData, item.FrameIndex, item.FrameX, item.FrameY)
+        qaz.frameCollector.dictionary_append(item.FrameIndex, item.FrameX, item.FrameY)
 
     qaz.generate_batch_frames()
 

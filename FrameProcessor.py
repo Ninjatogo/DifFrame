@@ -32,11 +32,16 @@ class FrameProcessor:
         self.load_file_paths()
         self.set_dicing_rate(1)
 
+    def extract_differences(self):
+        color_frame_block_b = frame_b[int(y):int(y + h), int(x):int(x + w)]
+        color_frame_block_b = np.pad(color_frame_block_b, pad_width=((2, 2), (2, 2), (0, 0)),
+                                     mode='edge')
+
     def generate_batch_frames(self):
         while self.frameCollector.is_working_set_ready(self.frameDivisionDimensionX * self.frameDivisionDimensionY):
             self.frameCollector.save_to_disk(self.frameDivisionDimensionX, self.frameDivisionDimensionY)
 
-    def extract_differences(self, in_file_indices, in_return_to_queue):
+    def identify_differences(self, in_file_indices, in_return_to_queue):
         difference_list = []
         for inFileIndex in in_file_indices:
             if inFileIndex + 1 < len(self.framePaths):
@@ -61,8 +66,7 @@ class FrameProcessor:
                                                          mode='edge')
                             if in_return_to_queue:
                                 difference_list.append(
-                                    DataTemplates.diffBlckTransfer(FrameData=color_frame_block_b,
-                                                                   FrameIndex=inFileIndex,
+                                    DataTemplates.diffBlckTransfer(FrameIndex=inFileIndex,
                                                                    FrameX=iw, FrameY=ih))
                             else:
                                 self.frameCollector.dictionary_append(color_frame_block_b, inFileIndex, iw, ih)

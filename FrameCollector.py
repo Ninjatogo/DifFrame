@@ -8,11 +8,11 @@ class FrameCollector:
         self.diffBlocksTempDict = {'count': 0}
         self.diffBlocksStorageDict = {'OutputFrame': 0}
 
-    def dictionary_append(self, inFrameData, inFrameNumber, inFrameX, inFrameY):
+    def dictionary_append(self, inFrameNumber, inFrameX, inFrameY):
         if self.diffBlocksTempDict.get(inFrameNumber) is None:
             self.diffBlocksTempDict[inFrameNumber] = []
         self.diffBlocksTempDict[inFrameNumber].append(
-            datTemp.diffBlckMin(FrameData=inFrameData, FrameX=inFrameX, FrameY=inFrameY))
+            datTemp.diffBlckMin(FrameX=inFrameX, FrameY=inFrameY))
         self.diffBlocksTempDict['count'] += 1
 
     def is_working_set_ready(self, inWorkingSetSize):
