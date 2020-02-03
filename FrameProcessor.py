@@ -12,7 +12,7 @@ import numpy as np
 from skimage.metrics import structural_similarity
 
 from FrameCollector import FrameCollector
-import DataTemplates
+import DataTemplates as datTemp
 import AspectRatioCalculator
 
 
@@ -32,14 +32,80 @@ class FrameProcessor:
         self.load_file_paths()
         self.set_dicing_rate(1)
 
-    def extract_differences(self):
+    def extract_differences(self, in_frame_index, in_frame_block_x, in_frame_block_y):
+        frame_b = cv2.imread(self.framePaths[in_frame_index + 1])
+        x = self.frameWidth / self.frameDivisionDimensionX * in_frame_block_x
+        y = self.frameHeight / self.frameDivisionDimensionY * in_frame_block_y
+        h = self.frameHeight / self.frameDivisionDimensionY
+        w = self.frameWidth / self.frameDivisionDimensionX
         color_frame_block_b = frame_b[int(y):int(y + h), int(x):int(x + w)]
         color_frame_block_b = np.pad(color_frame_block_b, pad_width=((2, 2), (2, 2), (0, 0)),
                                      mode='edge')
+        return color_frame_block_b
+
+    def generate_output_frames(self, in_crop_w_size, in_crop_h_size):
+        working_set_dict = self.frameCollector.get_working_set_collection(in_crop_w_size * in_crop_h_size)
+        working_set_tuple_list = []
+        image_buffer = []
+        file_name = self.frameCollector.diffBlocksStorageDict['OutputFrame']
+
+        keys = list(working_set_dict.keys())
+        for frameNumber in keys:
+            frame_block_list = working_set_dict.get(frameNumber)
+            for frameBlock in frame_block_list:
+                working_set_tuple_list.append((frameNumber, frameBlock))
+
+        for y in range(in_crop_h_size):
+            # Start off image array with one frame block to give loop something to append to
+            image_strip = self.extract_differences(working_set_tuple_list[y * in_crop_w_size][1].FrameIndex,
+                                                   working_set_tuple_list[y * in_crop_w_size][1].FrameX,
+                                                   working_set_tuple_list[y * in_crop_w_size][1].FrameY)
+
+            if self.frameCollector.diffBlocksStorageDict.get(working_set_tuple_list[y * in_crop_w_size][0]) is None:
+                self.frameCollector.diffBlocksStorageDict[working_set_tuple_list[y * in_crop_w_size][0]] = []
+
+            _frameX = working_set_tuple_list[y * in_crop_w_size][1].FrameX
+            _frameY = working_set_tuple_list[y * in_crop_w_size][1].FrameY
+            frame_diff_block_complete = datTemp.diffBlckComplete(FrameX=_frameX, FrameY=_frameY, Filename=file_name,
+                                                                 FileX=0, FileY=y)
+            self.frameCollector.diffBlocksStorageDict[working_set_tuple_list[y * in_crop_w_size][0]].append(
+                frame_diff_block_complete)
+
+            for x in range(in_crop_w_size - 1):
+                _frame_data = self.extract_differences(
+                    working_set_tuple_list[(x + 1) + (y * in_crop_w_size)][1].FrameIndex,
+                    working_set_tuple_list[(x + 1) + (y * in_crop_w_size)][1].FrameX,
+                    working_set_tuple_list[(x + 1) + (y * in_crop_w_size)][1].FrameY)
+                image_strip = np.concatenate([image_strip, _frame_data], axis=1)
+                if self.frameCollector.diffBlocksStorageDict.get(
+                        working_set_tuple_list[(x + 1) + (y * in_crop_w_size)][0]) is None:
+                    self.frameCollector.diffBlocksStorageDict[
+                        working_set_tuple_list[(x + 1) + (y * in_crop_w_size)][0]] = []
+
+                _frameX = working_set_tuple_list[(x + 1) + (y * in_crop_w_size)][1].FrameX
+                _frameY = working_set_tuple_list[(x + 1) + (y * in_crop_w_size)][1].FrameY
+                frame_diff_block_complete = datTemp.diffBlckComplete(FrameX=_frameX, FrameY=_frameY, Filename=file_name,
+                                                                     FileX=x + 1, FileY=y)
+                self.frameCollector.diffBlocksStorageDict[
+                    working_set_tuple_list[(x + 1) + (y * in_crop_w_size)][0]].append(
+                    frame_diff_block_complete)
+
+            image_buffer.append(image_strip)
+
+        image_buffer2 = image_buffer[0]
+        for i in range(len(image_buffer)):
+            if (i + 1) < len(image_buffer):
+                image_buffer2 = np.concatenate([image_buffer2, image_buffer[i + 1]], axis=0)
+        return image_buffer2
+
+    def save_to_disk(self, in_crop_w_size, in_crop_h_size):
+        image_buffer2 = self.generate_output_frames(in_crop_w_size, in_crop_h_size)
+        cv2.imwrite(f"OutputFrames\\pic{self.frameCollector.diffBlocksStorageDict['OutputFrame']}.jpg", image_buffer2)
+        self.frameCollector.diffBlocksStorageDict['OutputFrame'] += 1
 
     def generate_batch_frames(self):
         while self.frameCollector.is_working_set_ready(self.frameDivisionDimensionX * self.frameDivisionDimensionY):
-            self.frameCollector.save_to_disk(self.frameDivisionDimensionX, self.frameDivisionDimensionY)
+            self.save_to_disk(self.frameDivisionDimensionX, self.frameDivisionDimensionY)
 
     def identify_differences(self, in_file_indices, in_return_to_queue):
         difference_list = []
@@ -61,15 +127,12 @@ class FrameProcessor:
                         similarity_score = structural_similarity(gray_frame_block_a, gray_frame_block_b, full=True)[0]
 
                         if similarity_score <= self.similarityThreshold:
-                            color_frame_block_b = frame_b[int(y):int(y + h), int(x):int(x + w)]
-                            color_frame_block_b = np.pad(color_frame_block_b, pad_width=((2, 2), (2, 2), (0, 0)),
-                                                         mode='edge')
                             if in_return_to_queue:
                                 difference_list.append(
-                                    DataTemplates.diffBlckTransfer(FrameIndex=inFileIndex,
-                                                                   FrameX=iw, FrameY=ih))
+                                    datTemp.diffBlckTransfer(FrameIndex=inFileIndex,
+                                                             FrameX=iw, FrameY=ih))
                             else:
-                                self.frameCollector.dictionary_append(color_frame_block_b, inFileIndex, iw, ih)
+                                self.frameCollector.dictionary_append(inFileIndex, iw, ih)
         return difference_list
 
     def set_dicing_rate(self, in_rate=1):

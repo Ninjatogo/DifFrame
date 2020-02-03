@@ -20,12 +20,12 @@ def main():
     for item in list(itertools.chain(*pool_output)):
         qaz.frameCollector.dictionary_append(item.FrameIndex, item.FrameX, item.FrameY)
 
-    qaz.generate_batch_frames()
+    #qaz.generate_batch_frames()
 
 
 if __name__ == "__main__":
     time0 = time.time()
-    loop_count = 10
+    loop_count = 4
     for i in range(loop_count):
         main()
     time1 = time.time()
