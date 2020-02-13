@@ -9,18 +9,18 @@ from FrameProcessor import FrameProcessor
 
 def main():
     print('DifFrame Main')
-    qaz = FrameProcessor('SampleFrames-Mob_Psycho_100', 0.92)
+    frame_processor = FrameProcessor('SampleFrames-Mob_Psycho_100', 0.92)
     frame_range_raw = [y for y in range(17)]
-    frame_range_chunked = np.array_split(frame_range_raw, cpu_count())
-    qaz.set_dicing_rate(2)
+    frame_range_chunks = np.array_split(frame_range_raw, cpu_count())
+    frame_processor.set_dicing_rate(2)
 
     with Pool() as pool:
-        pool_output = pool.starmap(qaz.identify_differences, [(x, True) for x in frame_range_chunked])
+        pool_output = pool.starmap(frame_processor.identify_differences, [(x, True) for x in frame_range_chunks])
 
     for item in list(itertools.chain(*pool_output)):
-        qaz.frameCollector.dictionary_append(item.FrameIndex, item.FrameX, item.FrameY)
+        frame_processor.frameCollector.dictionary_append(item.FrameIndex, item.FrameX, item.FrameY)
 
-    #qaz.generate_batch_frames()
+    frame_processor.generate_batch_frames()
 
 
 if __name__ == "__main__":

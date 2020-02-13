@@ -20,7 +20,8 @@ class FrameProcessor:
     frameCollector: FrameCollector
 
     def __init__(self, in_frame_directory, in_similarity_threshold):
-        self.currentFrameIndex = 0
+        self.currentFrameIndex = -10
+        self.currentFrameData = np.array([[0, 0, 0], [0, 0, 0]], np.uint8)
         self.frameCollector = FrameCollector()
         self.frameDirectoryPath = in_frame_directory
         self.framePaths = []
@@ -32,13 +33,17 @@ class FrameProcessor:
         self.load_file_paths()
         self.set_dicing_rate(1)
 
-    def extract_differences(self, in_frame_index, in_frame_block_x, in_frame_block_y):
-        frame_b = cv2.imread(self.framePaths[in_frame_index + 1])
+    def update_loaded_frame(self, in_frame_index):
+        if in_frame_index != self.currentFrameIndex:
+            self.currentFrameIndex = in_frame_index
+            self.currentFrameData = cv2.imread(self.framePaths[in_frame_index + 1])
+
+    def extract_differences(self, in_frame_block_x, in_frame_block_y):
         x = self.frameWidth / self.frameDivisionDimensionX * in_frame_block_x
         y = self.frameHeight / self.frameDivisionDimensionY * in_frame_block_y
         h = self.frameHeight / self.frameDivisionDimensionY
         w = self.frameWidth / self.frameDivisionDimensionX
-        color_frame_block_b = frame_b[int(y):int(y + h), int(x):int(x + w)]
+        color_frame_block_b = self.currentFrameData[int(y):int(y + h), int(x):int(x + w)]
         color_frame_block_b = np.pad(color_frame_block_b, pad_width=((2, 2), (2, 2), (0, 0)),
                                      mode='edge')
         return color_frame_block_b
@@ -46,7 +51,7 @@ class FrameProcessor:
     def generate_output_frames(self, in_crop_w_size, in_crop_h_size):
         working_set_dict = self.frameCollector.get_working_set_collection(in_crop_w_size * in_crop_h_size)
         working_set_tuple_list = []
-        image_buffer = []
+        image_strips = []
         file_name = self.frameCollector.diffBlocksStorageDict['OutputFrame']
 
         keys = list(working_set_dict.keys())
@@ -57,8 +62,8 @@ class FrameProcessor:
 
         for y in range(in_crop_h_size):
             # Start off image array with one frame block to give loop something to append to
-            image_strip = self.extract_differences(working_set_tuple_list[y * in_crop_w_size][1].FrameIndex,
-                                                   working_set_tuple_list[y * in_crop_w_size][1].FrameX,
+            self.update_loaded_frame(working_set_tuple_list[y * in_crop_w_size][1].FrameIndex)
+            image_strip = self.extract_differences(working_set_tuple_list[y * in_crop_w_size][1].FrameX,
                                                    working_set_tuple_list[y * in_crop_w_size][1].FrameY)
 
             if self.frameCollector.diffBlocksStorageDict.get(working_set_tuple_list[y * in_crop_w_size][0]) is None:
@@ -72,8 +77,8 @@ class FrameProcessor:
                 frame_diff_block_complete)
 
             for x in range(in_crop_w_size - 1):
+                self.update_loaded_frame(working_set_tuple_list[(x + 1) + (y * in_crop_w_size)][1].FrameIndex)
                 _frame_data = self.extract_differences(
-                    working_set_tuple_list[(x + 1) + (y * in_crop_w_size)][1].FrameIndex,
                     working_set_tuple_list[(x + 1) + (y * in_crop_w_size)][1].FrameX,
                     working_set_tuple_list[(x + 1) + (y * in_crop_w_size)][1].FrameY)
                 image_strip = np.concatenate([image_strip, _frame_data], axis=1)
@@ -90,13 +95,13 @@ class FrameProcessor:
                     working_set_tuple_list[(x + 1) + (y * in_crop_w_size)][0]].append(
                     frame_diff_block_complete)
 
-            image_buffer.append(image_strip)
+            image_strips.append(image_strip)
 
-        image_buffer2 = image_buffer[0]
-        for i in range(len(image_buffer)):
-            if (i + 1) < len(image_buffer):
-                image_buffer2 = np.concatenate([image_buffer2, image_buffer[i + 1]], axis=0)
-        return image_buffer2
+        image_buffer = image_strips[0]
+        for i in range(len(image_strips)):
+            if (i + 1) < len(image_strips):
+                image_buffer = np.concatenate([image_buffer, image_strips[i + 1]], axis=0)
+        return image_buffer
 
     def save_to_disk(self, in_crop_w_size, in_crop_h_size):
         image_buffer2 = self.generate_output_frames(in_crop_w_size, in_crop_h_size)
