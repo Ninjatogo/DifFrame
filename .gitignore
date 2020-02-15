@@ -1,2 +1,7 @@
 
 .vscode/settings.json
+venv/pyvenv.cfg
+*.pyc
+.idea/misc.xml
+.idea/DifFrame.iml
+OutputFrames/
