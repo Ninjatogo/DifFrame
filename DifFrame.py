@@ -25,7 +25,7 @@ def main():
 
 if __name__ == "__main__":
     time0 = time.time()
-    loop_count = 4
+    loop_count = 10
     for i in range(loop_count):
         main()
     time1 = time.time()
