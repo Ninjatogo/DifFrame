@@ -10,6 +10,7 @@ import os
 import cv2
 import numpy as np
 from skimage.metrics import structural_similarity
+from multiprocessing import Pool, cpu_count
 
 from FrameCollector import FrameCollector
 import DataTemplates as datTemp
@@ -48,15 +49,14 @@ class FrameProcessor:
                                      mode='edge')
         return color_frame_block_b
 
-    def generate_output_frames(self, in_crop_w_size, in_crop_h_size):
-        working_set_dict = self.frameCollector.get_working_set_collection(in_crop_w_size * in_crop_h_size)
+    def generate_output_frames(self, in_crop_w_size, in_crop_h_size, in_working_set_dict):
         working_set_tuple_list = []
         image_strips = []
         file_name = self.frameCollector.diffBlocksStorageDict['OutputFrame']
 
-        keys = list(working_set_dict.keys())
+        keys = list(in_working_set_dict.keys())
         for frameNumber in keys:
-            frame_block_list = working_set_dict.get(frameNumber)
+            frame_block_list = in_working_set_dict.get(frameNumber)
             for frameBlock in frame_block_list:
                 working_set_tuple_list.append((frameNumber, frameBlock))
 
@@ -103,14 +103,19 @@ class FrameProcessor:
                 image_buffer = np.concatenate([image_buffer, image_strips[i + 1]], axis=0)
         return image_buffer
 
-    def save_to_disk(self, in_crop_w_size, in_crop_h_size):
-        image_buffer2 = self.generate_output_frames(in_crop_w_size, in_crop_h_size)
+    def save_to_disk(self, in_crop_w_size, in_crop_h_size, in_working_set_dict):
+        image_buffer2 = self.generate_output_frames(in_crop_w_size, in_crop_h_size, in_working_set_dict)
         cv2.imwrite(f"OutputFrames\\pic{self.frameCollector.diffBlocksStorageDict['OutputFrame']}.jpg", image_buffer2)
         self.frameCollector.diffBlocksStorageDict['OutputFrame'] += 1
 
     def generate_batch_frames(self):
+        working_set_dicts = []
         while self.frameCollector.is_working_set_ready(self.frameDivisionDimensionX * self.frameDivisionDimensionY):
-            self.save_to_disk(self.frameDivisionDimensionX, self.frameDivisionDimensionY)
+            working_set_dicts.append(self.frameCollector.get_working_set_collection(self.frameDivisionDimensionX * self.frameDivisionDimensionY))
+
+        working_set_chunks = np.array_split(working_set_dicts, cpu_count())
+        with Pool() as pool:
+            pool.starmap(self.save_to_disk, [(self.frameDivisionDimensionX, self.frameDivisionDimensionY, x) for x in working_set_chunks])
 
     def identify_differences(self, in_file_indices, in_return_to_queue):
         difference_list = []
