@@ -6,6 +6,7 @@ Created on Sat Aug 31 18:30:27 2019
 """
 
 import os
+from concurrent.futures import ThreadPoolExecutor
 
 import cv2
 import numpy as np
@@ -103,14 +104,16 @@ class FrameProcessor:
                 image_buffer = np.concatenate([image_buffer, image_strips[i + 1]], axis=0)
         return image_buffer
 
-    def save_to_disk(self, in_crop_w_size, in_crop_h_size):
-        image_buffer2 = self.generate_output_frames(in_crop_w_size, in_crop_h_size)
-        cv2.imwrite(f"OutputFrames\\pic{self.frameCollector.diffBlocksStorageDict['OutputFrame']}.jpg", image_buffer2)
-        self.frameCollector.diffBlocksStorageDict['OutputFrame'] += 1
+    def save_to_disk(self, in_file_name, in_file_data):
+        cv2.imwrite(in_file_name, in_file_data)
 
     def generate_batch_frames(self):
-        while self.frameCollector.is_working_set_ready(self.frameDivisionDimensionX * self.frameDivisionDimensionY):
-            self.save_to_disk(self.frameDivisionDimensionX, self.frameDivisionDimensionY)
+        with ThreadPoolExecutor() as executor:
+            while self.frameCollector.is_working_set_ready(self.frameDivisionDimensionX * self.frameDivisionDimensionY):
+                image_buffer2 = self.generate_output_frames(self.frameDivisionDimensionX, self.frameDivisionDimensionY)
+                file_name = f"OutputFrames\\pic{self.frameCollector.diffBlocksStorageDict['OutputFrame']}.jpg"
+                self.frameCollector.diffBlocksStorageDict['OutputFrame'] += 1
+                executor.submit(self.save_to_disk, (file_name, image_buffer2))
 
     def identify_differences(self, in_file_indices, in_return_to_queue):
         difference_list = []
