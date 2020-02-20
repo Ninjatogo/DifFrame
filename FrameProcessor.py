@@ -6,7 +6,7 @@ Created on Sat Aug 31 18:30:27 2019
 """
 
 import os
-from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures
 
 import cv2
 import numpy as np
@@ -108,39 +108,48 @@ class FrameProcessor:
         cv2.imwrite(in_file_name, in_file_data)
 
     def generate_batch_frames(self):
-        with ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             while self.frameCollector.is_working_set_ready(self.frameDivisionDimensionX * self.frameDivisionDimensionY):
                 image_buffer2 = self.generate_output_frames(self.frameDivisionDimensionX, self.frameDivisionDimensionY)
                 file_name = f"OutputFrames\\pic{self.frameCollector.diffBlocksStorageDict['OutputFrame']}.jpg"
                 self.frameCollector.diffBlocksStorageDict['OutputFrame'] += 1
-                executor.submit(self.save_to_disk, (file_name, image_buffer2))
+                executor.submit(self.save_to_disk, file_name, image_buffer2)
+
+    def identify_differences_single_frame(self, in_file_index, in_return_to_queue):
+        difference_list = []
+        if in_file_index + 1 < len(self.framePaths):
+            frame_a = cv2.imread(self.framePaths[in_file_index])
+            frame_b = cv2.imread(self.framePaths[in_file_index + 1])
+            gray_frame_a = cv2.cvtColor(frame_a, cv2.COLOR_BGR2GRAY)
+            gray_frame_b = cv2.cvtColor(frame_b, cv2.COLOR_BGR2GRAY)
+            for ih in range(self.frameDivisionDimensionY):
+                for iw in range(self.frameDivisionDimensionX):
+                    x = self.frameWidth / self.frameDivisionDimensionX * iw
+                    y = self.frameHeight / self.frameDivisionDimensionY * ih
+                    h = self.frameHeight / self.frameDivisionDimensionY
+                    w = self.frameWidth / self.frameDivisionDimensionX
+                    gray_frame_block_a = gray_frame_a[int(y):int(y + h), int(x):int(x + w)]
+                    gray_frame_block_b = gray_frame_b[int(y):int(y + h), int(x):int(x + w)]
+
+                    similarity_score = structural_similarity(gray_frame_block_a, gray_frame_block_b, full=True)[0]
+
+                    if similarity_score <= self.similarityThreshold:
+                        if in_return_to_queue:
+                            difference_list.append(
+                                datTemp.diffBlckTransfer(FrameIndex=in_file_index,
+                                                         FrameX=iw, FrameY=ih))
+                        else:
+                            self.frameCollector.dictionary_append(in_file_index, iw, ih)
+        return difference_list
 
     def identify_differences(self, in_file_indices, in_return_to_queue):
         difference_list = []
-        for inFileIndex in in_file_indices:
-            if inFileIndex + 1 < len(self.framePaths):
-                frame_a = cv2.imread(self.framePaths[inFileIndex])
-                frame_b = cv2.imread(self.framePaths[inFileIndex + 1])
-                gray_frame_a = cv2.cvtColor(frame_a, cv2.COLOR_BGR2GRAY)
-                gray_frame_b = cv2.cvtColor(frame_b, cv2.COLOR_BGR2GRAY)
-                for ih in range(self.frameDivisionDimensionY):
-                    for iw in range(self.frameDivisionDimensionX):
-                        x = self.frameWidth / self.frameDivisionDimensionX * iw
-                        y = self.frameHeight / self.frameDivisionDimensionY * ih
-                        h = self.frameHeight / self.frameDivisionDimensionY
-                        w = self.frameWidth / self.frameDivisionDimensionX
-                        gray_frame_block_a = gray_frame_a[int(y):int(y + h), int(x):int(x + w)]
-                        gray_frame_block_b = gray_frame_b[int(y):int(y + h), int(x):int(x + w)]
-
-                        similarity_score = structural_similarity(gray_frame_block_a, gray_frame_block_b, full=True)[0]
-
-                        if similarity_score <= self.similarityThreshold:
-                            if in_return_to_queue:
-                                difference_list.append(
-                                    datTemp.diffBlckTransfer(FrameIndex=inFileIndex,
-                                                             FrameX=iw, FrameY=ih))
-                            else:
-                                self.frameCollector.dictionary_append(inFileIndex, iw, ih)
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future_to_differences = {
+                executor.submit(self.identify_differences_single_frame, inFileIndex, in_return_to_queue): inFileIndex
+                for inFileIndex in in_file_indices}
+            for future in concurrent.futures.as_completed(future_to_differences):
+                difference_list.extend(future.result())
         return difference_list
 
     def set_dicing_rate(self, in_rate=1):
