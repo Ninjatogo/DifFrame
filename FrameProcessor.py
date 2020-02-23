@@ -6,11 +6,11 @@ Created on Sat Aug 31 18:30:27 2019
 """
 
 import os
-import concurrent.futures
 
 import cv2
 import numpy as np
 from skimage.metrics import structural_similarity
+from multiprocessing import Pool, cpu_count
 
 from FrameCollector import FrameCollector
 import DataTemplates as datTemp
@@ -31,6 +31,7 @@ class FrameProcessor:
         self.frameWidth = 1
         self.frameDivisionDimensionX = 1
         self.frameDivisionDimensionY = 1
+        self.miniBatchSize = 4
         self.load_file_paths()
         self.set_dicing_rate(1)
 
@@ -108,11 +109,21 @@ class FrameProcessor:
         cv2.imwrite(in_file_name, in_file_data)
 
     def generate_batch_frames(self):
+        temp_batch_collection = []
         while self.frameCollector.is_working_set_ready(self.frameDivisionDimensionX * self.frameDivisionDimensionY):
             image_buffer2 = self.generate_output_frames(self.frameDivisionDimensionX, self.frameDivisionDimensionY)
             file_name = f"OutputFrames\\pic{self.frameCollector.diffBlocksStorageDict['OutputFrame']}.jpg"
             self.frameCollector.diffBlocksStorageDict['OutputFrame'] += 1
-            self.save_to_disk(file_name, image_buffer2)
+            temp_batch_collection.append((file_name, image_buffer2))
+            if len(temp_batch_collection) == cpu_count() * self.miniBatchSize:
+                batch_collection_chunks = np.array_split(temp_batch_collection, cpu_count())
+                with Pool() as pool:
+                    pool.starmap(self.save_to_disk,
+                                 [(x[0], x[1]) for x in batch_collection_chunks])
+                temp_batch_collection.clear()
+        # save any remaining frames on a single CPU
+        for item in temp_batch_collection:
+            self.save_to_disk(item[0], item[1])
 
     def identify_differences_single_frame(self, in_file_index, in_return_to_queue):
         difference_list = []

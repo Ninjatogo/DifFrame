@@ -10,7 +10,7 @@ from FrameProcessor import FrameProcessor
 def main():
     print('DifFrame Main')
     frame_processor = FrameProcessor('SampleFrames-Mob_Psycho_100', 0.92)
-    frame_range_raw = [y for y in range(17)]
+    frame_range_raw = [y for y in range(len(frame_processor.framePaths))]
     frame_range_chunks = np.array_split(frame_range_raw, cpu_count())
     frame_processor.set_dicing_rate(2)
 
