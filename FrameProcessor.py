@@ -108,12 +108,11 @@ class FrameProcessor:
         cv2.imwrite(in_file_name, in_file_data)
 
     def generate_batch_frames(self):
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            while self.frameCollector.is_working_set_ready(self.frameDivisionDimensionX * self.frameDivisionDimensionY):
-                image_buffer2 = self.generate_output_frames(self.frameDivisionDimensionX, self.frameDivisionDimensionY)
-                file_name = f"OutputFrames\\pic{self.frameCollector.diffBlocksStorageDict['OutputFrame']}.jpg"
-                self.frameCollector.diffBlocksStorageDict['OutputFrame'] += 1
-                executor.submit(self.save_to_disk, file_name, image_buffer2)
+        while self.frameCollector.is_working_set_ready(self.frameDivisionDimensionX * self.frameDivisionDimensionY):
+            image_buffer2 = self.generate_output_frames(self.frameDivisionDimensionX, self.frameDivisionDimensionY)
+            file_name = f"OutputFrames\\pic{self.frameCollector.diffBlocksStorageDict['OutputFrame']}.jpg"
+            self.frameCollector.diffBlocksStorageDict['OutputFrame'] += 1
+            self.save_to_disk(file_name, image_buffer2)
 
     def identify_differences_single_frame(self, in_file_index, in_return_to_queue):
         difference_list = []
@@ -144,12 +143,8 @@ class FrameProcessor:
 
     def identify_differences(self, in_file_indices, in_return_to_queue):
         difference_list = []
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future_to_differences = {
-                executor.submit(self.identify_differences_single_frame, inFileIndex, in_return_to_queue): inFileIndex
-                for inFileIndex in in_file_indices}
-            for future in concurrent.futures.as_completed(future_to_differences):
-                difference_list.extend(future.result())
+        for inFileIndex in in_file_indices:
+            difference_list.extend(self.identify_differences_single_frame(inFileIndex, in_return_to_queue))
         return difference_list
 
     def set_dicing_rate(self, in_rate=1):
