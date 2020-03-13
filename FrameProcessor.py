@@ -17,6 +17,29 @@ import DataTemplates as datTemp
 import AspectRatioCalculator
 
 
+def save_single_image_to_disk(in_file_name, in_file_data):
+    cv2.imwrite(in_file_name, in_file_data)
+
+
+def save_image_batch_to_disk(in_image_batch):
+    for image in in_image_batch:
+        save_single_image_to_disk(image[0], image[1])
+
+
+def scale_frame(in_frame):
+    scale_percent = 80
+
+    # calculate the 50 percent of original dimensions
+    width = int(in_frame.shape[1] * (scale_percent / 100))
+    height = int(in_frame.shape[0] * (scale_percent / 100))
+
+    new_dimensions = (width, height)
+
+    # resize image
+    output = cv2.resize(in_frame, new_dimensions)
+    return output
+
+
 class FrameProcessor:
     frameCollector: FrameCollector
 
@@ -105,9 +128,6 @@ class FrameProcessor:
                 image_buffer = np.concatenate([image_buffer, image_strips[i + 1]], axis=0)
         return image_buffer
 
-    def save_to_disk(self, in_file_name, in_file_data):
-        cv2.imwrite(in_file_name, in_file_data)
-
     def generate_batch_frames(self):
         temp_batch_collection = []
         while self.frameCollector.is_working_set_ready(self.frameDivisionDimensionX * self.frameDivisionDimensionY):
@@ -118,28 +138,31 @@ class FrameProcessor:
             if len(temp_batch_collection) == cpu_count() * self.miniBatchSize:
                 batch_collection_chunks = np.array_split(temp_batch_collection, cpu_count())
                 with Pool() as pool:
-                    pool.starmap(self.save_to_disk,
-                                 [(x[0], x[1]) for x in batch_collection_chunks])
+                    pool.map(save_image_batch_to_disk,
+                             [x for x in batch_collection_chunks])
                 temp_batch_collection.clear()
         # save any remaining frames on a single CPU
         for item in temp_batch_collection:
-            self.save_to_disk(item[0], item[1])
+            save_single_image_to_disk(item[0], item[1])
 
     def identify_differences_single_frame(self, in_file_index, in_return_to_queue):
         difference_list = []
         if in_file_index + 1 < len(self.framePaths):
             frame_a = cv2.imread(self.framePaths[in_file_index])
             frame_b = cv2.imread(self.framePaths[in_file_index + 1])
-            gray_frame_a = cv2.cvtColor(frame_a, cv2.COLOR_BGR2GRAY)
-            gray_frame_b = cv2.cvtColor(frame_b, cv2.COLOR_BGR2GRAY)
+            frame_a_resized = scale_frame(frame_a)
+            frame_b_resized = scale_frame(frame_b)
+            gray_frame_a = cv2.cvtColor(frame_a_resized, cv2.COLOR_BGR2GRAY)
+            gray_frame_b = cv2.cvtColor(frame_b_resized, cv2.COLOR_BGR2GRAY)
             for ih in range(self.frameDivisionDimensionY):
                 for iw in range(self.frameDivisionDimensionX):
-                    x = self.frameWidth / self.frameDivisionDimensionX * iw
-                    y = self.frameHeight / self.frameDivisionDimensionY * ih
-                    h = self.frameHeight / self.frameDivisionDimensionY
-                    w = self.frameWidth / self.frameDivisionDimensionX
+                    x = gray_frame_a.shape[1] / self.frameDivisionDimensionX * iw
+                    y = gray_frame_a.shape[0] / self.frameDivisionDimensionY * ih
+                    h = gray_frame_a.shape[0] / self.frameDivisionDimensionY
+                    w = gray_frame_a.shape[1] / self.frameDivisionDimensionX
                     gray_frame_block_a = gray_frame_a[int(y):int(y + h), int(x):int(x + w)]
                     gray_frame_block_b = gray_frame_b[int(y):int(y + h), int(x):int(x + w)]
+                    #print(f"Image dimensions {gray_frame_block_a.shape}")
 
                     similarity_score = structural_similarity(gray_frame_block_a, gray_frame_block_b, full=True)[0]
 
@@ -152,7 +175,7 @@ class FrameProcessor:
                             self.frameCollector.dictionary_append(in_file_index, iw, ih)
         return difference_list
 
-    def identify_differences(self, in_file_indices, in_return_to_queue):
+    def identify_differences(self, in_file_indices, in_return_to_queue=True):
         difference_list = []
         for inFileIndex in in_file_indices:
             difference_list.extend(self.identify_differences_single_frame(inFileIndex, in_return_to_queue))
