@@ -4,5 +4,5 @@ venv/pyvenv.cfg
 *.pyc
 .idea/misc.xml
 .idea/DifFrame.iml
-OutputFrames/
+Frames_Deltas/
 SampleFrames-Mob_Psycho_100_BIG/

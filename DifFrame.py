@@ -20,12 +20,14 @@ def main():
     for item in list(itertools.chain(*pool_output)):
         frame_processor.frameCollector.dictionary_append(item.FrameIndex, item.FrameX, item.FrameY)
 
-    frame_processor.generate_batch_frames()
+    frame_processor.generate_and_save_delta_frames()
+
+    frame_processor.reconstruct_frames()
 
 
 if __name__ == "__main__":
     time0 = time.time()
-    loop_count = 10
+    loop_count = 1
     for i in range(loop_count):
         main()
     time1 = time.time()

@@ -43,11 +43,11 @@ def scale_frame(in_frame):
 class FrameProcessor:
     frameCollector: FrameCollector
 
-    def __init__(self, in_frame_directory, in_similarity_threshold):
+    def __init__(self, in_frame_input_directory, in_similarity_threshold):
         self.currentFrameIndex = -10
         self.currentFrameData = np.array([[0, 0, 0], [0, 0, 0]], np.uint8)
         self.frameCollector = FrameCollector()
-        self.frameDirectoryPath = in_frame_directory
+        self.frameInputDirectoryPath = in_frame_input_directory
         self.framePaths = []
         self.similarityThreshold = in_similarity_threshold
         self.frameHeight = 1
@@ -73,7 +73,7 @@ class FrameProcessor:
                                      mode='edge')
         return color_frame_block_b
 
-    def generate_output_frames(self, in_crop_w_size, in_crop_h_size):
+    def generate_delta_frame(self, in_crop_w_size, in_crop_h_size):
         working_set_dict = self.frameCollector.get_working_set_collection(in_crop_w_size * in_crop_h_size)
         working_set_tuple_list = []
         image_strips = []
@@ -128,11 +128,11 @@ class FrameProcessor:
                 image_buffer = np.concatenate([image_buffer, image_strips[i + 1]], axis=0)
         return image_buffer
 
-    def generate_batch_frames(self):
+    def generate_and_save_delta_frames(self):
         temp_batch_collection = []
         while self.frameCollector.is_working_set_ready(self.frameDivisionDimensionX * self.frameDivisionDimensionY):
-            image_buffer2 = self.generate_output_frames(self.frameDivisionDimensionX, self.frameDivisionDimensionY)
-            file_name = f"OutputFrames\\pic{self.frameCollector.diffBlocksStorageDict['OutputFrame']}.jpg"
+            image_buffer2 = self.generate_delta_frame(self.frameDivisionDimensionX, self.frameDivisionDimensionY)
+            file_name = f"Frames_Deltas\\delta_{self.frameCollector.diffBlocksStorageDict['OutputFrame']}.jpg"
             self.frameCollector.diffBlocksStorageDict['OutputFrame'] += 1
             temp_batch_collection.append((file_name, image_buffer2))
             if len(temp_batch_collection) == cpu_count() * self.miniBatchSize:
@@ -193,6 +193,21 @@ class FrameProcessor:
             self.frameDivisionDimensionY = aspect_ratio[1] * in_rate
 
     def load_file_paths(self):
-        with os.scandir(self.frameDirectoryPath) as entries:
+        with os.scandir(self.frameInputDirectoryPath) as entries:
             for entry in entries:
                 self.framePaths.append(entry.path)
+
+    def reconstruct_frames(self, in_use_same_directory=True, in_custom_directory=''):
+        print('Reconstructing video frames')
+        frame_buffer = []
+        with os.scandir('Frames_Upscaled') as upscaled_entries:
+            entries_hold = []
+            for entry in upscaled_entries:
+                entries_hold.append(entry.path)
+            entries_hold.sort()
+            first_scaled_frame = entries_hold[0]
+        # Split seed frame into blocks matching original frame processor size with the correct dicing rate
+        for frame_key in self.frameCollector.diffBlocksStorageDict:
+            print(f'Frame key: {frame_key}')
+            # Get data from frame buffer
+            # Replace parts of buffer that have been extracted by difference processor
