@@ -48,7 +48,8 @@ class FrameProcessor:
         self.currentFrameData = np.array([[0, 0, 0], [0, 0, 0]], np.uint8)
         self.frameCollector = FrameCollector()
         self.frameInputDirectoryPath = in_frame_input_directory
-        self.framePaths = []
+        self.frameInputPaths = []
+        self.frameDeltaPaths = []
         self.similarityThreshold = in_similarity_threshold
         self.frameHeight = 1
         self.frameWidth = 1
@@ -61,7 +62,7 @@ class FrameProcessor:
     def update_loaded_frame(self, in_frame_index):
         if in_frame_index != self.currentFrameIndex:
             self.currentFrameIndex = in_frame_index
-            self.currentFrameData = cv2.imread(self.framePaths[in_frame_index + 1])
+            self.currentFrameData = cv2.imread(self.frameInputPaths[in_frame_index + 1])
 
     def extract_differences(self, in_frame_block_x, in_frame_block_y):
         x = self.frameWidth / self.frameDivisionDimensionX * in_frame_block_x
@@ -147,9 +148,9 @@ class FrameProcessor:
 
     def identify_differences_single_frame(self, in_file_index, in_return_to_queue):
         difference_list = []
-        if in_file_index + 1 < len(self.framePaths):
-            frame_a = cv2.imread(self.framePaths[in_file_index])
-            frame_b = cv2.imread(self.framePaths[in_file_index + 1])
+        if in_file_index + 1 < len(self.frameInputPaths):
+            frame_a = cv2.imread(self.frameInputPaths[in_file_index])
+            frame_b = cv2.imread(self.frameInputPaths[in_file_index + 1])
             frame_a_resized = scale_frame(frame_a)
             frame_b_resized = scale_frame(frame_b)
             gray_frame_a = cv2.cvtColor(frame_a_resized, cv2.COLOR_BGR2GRAY)
@@ -162,7 +163,6 @@ class FrameProcessor:
                     w = gray_frame_a.shape[1] / self.frameDivisionDimensionX
                     gray_frame_block_a = gray_frame_a[int(y):int(y + h), int(x):int(x + w)]
                     gray_frame_block_b = gray_frame_b[int(y):int(y + h), int(x):int(x + w)]
-                    #print(f"Image dimensions {gray_frame_block_a.shape}")
 
                     similarity_score = structural_similarity(gray_frame_block_a, gray_frame_block_b, full=True)[0]
 
@@ -182,8 +182,8 @@ class FrameProcessor:
         return difference_list
 
     def set_dicing_rate(self, in_rate=1):
-        if len(self.framePaths) > 0:
-            img = cv2.imread(self.framePaths[0])
+        if len(self.frameInputPaths) > 0:
+            img = cv2.imread(self.frameInputPaths[0])
             height, width, channels = img.shape
             self.frameWidth = width
             self.frameHeight = height
@@ -195,19 +195,27 @@ class FrameProcessor:
     def load_file_paths(self):
         with os.scandir(self.frameInputDirectoryPath) as entries:
             for entry in entries:
-                self.framePaths.append(entry.path)
+                self.frameInputPaths.append(entry.path)
 
     def reconstruct_frames(self, in_use_same_directory=True, in_custom_directory=''):
         print('Reconstructing video frames')
         frame_buffer = []
+        # TODO: Detect upscaling factor used. Will need this to detect correct block border thickness.
         with os.scandir('Frames_Upscaled') as upscaled_entries:
             entries_hold = []
             for entry in upscaled_entries:
                 entries_hold.append(entry.path)
             entries_hold.sort()
             first_scaled_frame = entries_hold[0]
-        # Split seed frame into blocks matching original frame processor size with the correct dicing rate
-        for frame_key in self.frameCollector.diffBlocksStorageDict:
-            print(f'Frame key: {frame_key}')
-            # Get data from frame buffer
-            # Replace parts of buffer that have been extracted by difference processor
+        # TODO: Split seed frame into blocks matching original frame processor size with the correct dicing rate
+        for frame_key, frame_delta_blocks in self.frameCollector.diffBlocksStorageDict.items():
+            if frame_key != 'OutputFrame':
+                files_to_load = []
+                if len(frame_delta_blocks) > 1:
+                    files_to_load.append(frame_delta_blocks[0].Filename)
+                    files_to_load.append(frame_delta_blocks[-1].Filename)
+                # TODO: Load all files required for this frame reconstruction
+                #file_name = cv2.imread(f"Frames_Deltas\\delta_{frame_key}.jpg")
+
+                # Get data from frame buffer
+                # Replace parts of buffer that have been extracted by difference processor
